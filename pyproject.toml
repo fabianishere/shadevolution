@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "shader-evolution"
+version = "0.1.0"
+description = "Natural selection in a shader population"
+authors = ["Fabian Mastenbroek <mail.fabianm@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+glfw = "^1.11.2"
+numpy = "^1.18.5"
+PyOpenGL = "^3.1.5"
+pycparser = "^2.20"
+deap = "^1.3.1"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
