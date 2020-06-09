@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import moderngl
 import moderngl_window as mglw
 from moderngl_window.scene import KeyboardCamera
