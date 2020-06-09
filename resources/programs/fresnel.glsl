@@ -1,4 +1,3 @@
-
 float Fresnel (float th, float n) {
     float cosi = cos (th);
     float R = 1.0f;
