@@ -1,6 +1,3 @@
-import io
-from pathlib import Path
-
 import moderngl
 import moderngl_window as mglw
 import numpy as np
@@ -13,7 +10,6 @@ import shadevolution.plot as plot
 
 
 class App(mglw.WindowConfig):
-    resource_dir = (Path(__file__).parent.parent / 'resources').resolve()
     gl_version = (4, 1)
 
     def __init__(self, **kwargs):
@@ -22,19 +18,18 @@ class App(mglw.WindowConfig):
         self.reference_program = fresnel.create_program(self.ctx)
         self._init_model()
         self.duration_renderer = plot.FigureRenderer(self.ctx, xlabel='Time', ylabel='Frame Duration [ns]',
-                                                figsize=(600, 200))
+                                                     figsize=(600, 200))
         self.duration_line = plot.Line()
         self.duration_renderer.add(self.duration_line)
 
         self.error_renderer = plot.FigureRenderer(self.ctx, xlabel='Time', ylabel='Error [%]',
-                                            figsize=(600, 200))
+                                                  figsize=(600, 200))
         self.error_line = plot.Line()
         self.error_renderer.add(self.error_line)
 
         self.light_pos = Vector3([0.0, 0.0, 2.0], dtype='f4')
         self.light_color = Vector3([1.0, 1.0, 1.0], dtype='f4')
         self.object_color = Vector3([1.0, 0.5, 0.31], dtype='f4')
-
 
     def render(self, time, frametime):
         """
@@ -45,7 +40,6 @@ class App(mglw.WindowConfig):
          """
 
         self.ctx.clear()
-        self.ctx.blend_func = self.ctx.DEFAULT_BLENDING
         self.ctx.enable_only(moderngl.DEPTH_TEST | moderngl.CULL_FACE | moderngl.BLEND)
 
         translation = Matrix44.from_translation((0, 0, 0), dtype='f4')
@@ -72,7 +66,7 @@ class App(mglw.WindowConfig):
                                  Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
 
         projection_bottom_right = Matrix44.from_translation((0.5, -0.6, 0), dtype='f4') * \
-                                 Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
+                                  Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
 
         self.duration_line.append(time, query_right.elapsed)
         self.duration_renderer.render(projection_bottom_left * view)

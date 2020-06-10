@@ -1,3 +1,5 @@
+from pyrr import Vector3
+
 FRESNEL_BASELINE = '''
 float Fresnel (float th, float n) {
     float cosi = cos (th);
@@ -96,3 +98,46 @@ def create_fragment_shader(fresnel):
             FragColor = vec4(result, 1.0);
         }}
     '''
+
+
+class Fresnel:
+    """
+    A helper class for rendering the Fresnel shader.
+    """
+
+    def __init__(self, ctx, vao):
+        """
+        Construct the Fresnel helper class.
+
+        :param ctx: The OpenGL context to render in.
+        :param vao: The model to render.
+        """
+        self.ctx = ctx
+        self.vao = vao
+
+        self.light_pos = Vector3([0.0, 0.0, 2.0], dtype='f4')
+        self.light_color = Vector3([1.0, 1.0, 1.0], dtype='f4')
+        self.object_color = Vector3([1.0, 0.5, 0.31], dtype='f4')
+
+    def render(self, program, model, view, projection):
+        """
+        Render a model with the current program to screen.
+
+        :param model: The model matrix.
+        :param view: The view matrix.
+        :param projection: The projection matrix.
+        """
+        mvp = projection * view * model
+
+        program['normalModel'].write(model.T.inverse)
+        program['model'].write(model)
+        program['mvp'].write(mvp)
+        program['lightPos'].write(self.light_pos)
+        program['lightColor'].write(self.light_color)
+        program['objectColor'].write(self.object_color)
+
+        query = self.ctx.query(samples=True, time=True)
+        with query:
+            self.vao.render(program)
+        return query
+

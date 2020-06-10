@@ -1,4 +1,3 @@
-import difflib
 import random
 
 from deap import base, gp, creator, tools
@@ -47,27 +46,39 @@ def generate_pset(name, params, tree):
     return pset
 
 
-def setup_creator(pset):
+def setup_creator():
     """
     Setup the creator instance for DEAP.
     :return: The creator instance.
     """
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin, pset=pset)
+    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
     return creator
 
 
-def setup_toolbox(creator, genesis):
+def setup_toolbox(creator, pset, genesis):
     """
     Setup a toolbox for DEAP.
     :param creator: The creator to use.
+    :param pset: The primitive set to use for node creation.
     :param genesis: The initial tree to start with.
     :return: The created toolbox.
     """
     toolbox = base.Toolbox()
-    toolbox.register("expr", generate_individual, genesis=genesis)
-    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
+    toolbox.register("individual", generate_individual, creator.Individual, pset=pset, genesis=genesis)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     return toolbox
+
+
+def setup_operators(toolbox, pset):
+    """
+    Setup the genetic operators to be used during the evolution.
+    :param toolbox: The toolbox to register the operators to.
+    :param pset: The primitive set to pick new nodes from.
+    """
+    toolbox.register("mate", gp.cxOnePoint)
+    toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
+    toolbox.register("select", tools.selTournament, tournsize=16)
 
 
 def swap_children(tree, idx):
@@ -87,18 +98,3 @@ def swap_children(tree, idx):
     j = random.randrange(arity)
     subtree[i], subtree[j] = subtree[j], subtree[i]
     tree[slice] = subtree
-
-
-def diff(name, params, lhs, rhs):
-    """
-    Diff the source code of the two shader representations.
-    :param name: The name of the shader.
-    :param params: The parameters of the shader.
-    :param lhs: The initial shader source code.
-    :param rhs: The final shader source code.
-    :return: The difference between the shaders.
-    """
-    source_before = shader.write(name, params, lhs)
-    source_after = shader.write(name, params, rhs)
-
-    return difflib.Differ().compare(source_before.splitlines(1), source_after.splitlines(1))

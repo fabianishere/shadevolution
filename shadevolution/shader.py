@@ -1,3 +1,4 @@
+import difflib
 import textwrap
 
 from deap import gp
@@ -462,3 +463,18 @@ class ShaderWriter:
 
         fun = FUN[node.name]
         return fun.format(args, ctx)
+
+
+def diff(name, params, lhs, rhs):
+    """
+    Diff the source code of the two shader representations.
+    :param name: The name of the shader.
+    :param params: The parameters of the shader.
+    :param lhs: The initial shader source code.
+    :param rhs: The final shader source code.
+    :return: The difference between the shaders.
+    """
+    source_before = write(name, params, lhs)
+    source_after = write(name, params, rhs)
+
+    return difflib.Differ().compare(source_before.splitlines(True), source_after.splitlines(True))

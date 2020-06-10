@@ -1,18 +1,44 @@
+import numpy as np
+import moderngl_window as mglw
+from deap import tools, algorithms
 from pycparser import parse_file
+
 from shadevolution import shader, gp as sgp
-from deap import gp
-import sys
+from shadevolution.evaluator import Evaluator
 
 if __name__ == "__main__":
+    window_cls = mglw.get_local_window_cls()
+    window = window_cls(
+        title="Genetic Programming for Shader Optimization",
+        gl_version=(4, 1),
+        size=(1920, 1080),
+    )
+    mglw.activate_context(ctx=window.ctx)
+
+    # Parse shader
     ast = parse_file("resources/programs/fresnel.glsl", use_cpp=False)
     name, params, tree = shader.parse(ast.ext[0])[0]
     pset = sgp.generate_pset(name, params, tree)
 
-    cp = gp.PrimitiveTree(tree)
-    for _ in range(2):
-        gp.mutInsert(cp, pset)
-        gp.mutNodeReplacement(cp, pset)
-        gp.mutShrink(cp)
+    # Setup GP
+    creator = sgp.setup_creator()
+    toolbox = sgp.setup_toolbox(creator, pset, tree)
+    sgp.setup_operators(toolbox, pset)
 
-    res = sgp.diff(name, params, tree, cp)
-    sys.stdout.writelines(res)
+    # Setup evaluator
+    evaluator = Evaluator(window)
+    baseline = evaluator.determine_baseline()
+
+    toolbox.register("evaluate", evaluator.eval, genesis=tree, baseline=baseline)
+
+    pop = toolbox.population(n=300)
+    hof = tools.HallOfFame(1)
+    stats = tools.Statistics(lambda ind: ind.fitness.values)
+    stats.register("avg", np.mean)
+    stats.register("std", np.std)
+    stats.register("min", np.min)
+    stats.register("max", np.max)
+
+    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=40,
+                                   stats=stats, halloffame=hof, verbose=True)
+
