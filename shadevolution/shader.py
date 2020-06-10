@@ -213,6 +213,8 @@ FUN = {
     'sin/1': FunDef('sin', [Float], Float),
     'cos/1': FunDef('cos', [Float], Float),
     'sqrt/1': FunDef('sqrt', [Float], Float),
+    'pow/2': FunDef('sqrt', [Float, Float], Float),
+    'log/1': FunDef('log', [Float], Float),
     'min/2': FunDef('min', [Float, Float], Float),
     'max/2': FunDef('max', [Float, Float], Float)
 }

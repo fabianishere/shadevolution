@@ -66,8 +66,7 @@ def setup_toolbox(creator, genesis):
     """
     toolbox = base.Toolbox()
     toolbox.register("expr", generate_individual, genesis=genesis)
-    toolbox.register("individual", tools.initIterate, creator.Individual,
-                     toolbox.expr)
+    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     return toolbox
 
 
