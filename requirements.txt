@@ -1,0 +1,7 @@
+# Also requires numpy, but that is a dependency of a few of the following packages
+seaborn
+matplotlib
+moderngl
+moderngl_window
+deap
+pycparser
