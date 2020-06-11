@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import moderngl_window as mglw
 from deap import tools, algorithms
@@ -30,7 +32,7 @@ if __name__ == "__main__":
 
     toolbox.register("evaluate", evaluator.eval, genesis=tree, baseline=baseline)
 
-    pop = toolbox.population(n=100)
+    pop = toolbox.population(n=25)
     hof = tools.ParetoFront()  # Child of tools.HallOfFame
     stats = tools.Statistics(lambda ind: ind.fitness.values)
     stats.register("avg", np.mean, axis=0)
@@ -38,6 +40,11 @@ if __name__ == "__main__":
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=5,
+    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=1,
                                    stats=stats, halloffame=hof, verbose=True)
 
+    print("Hall of Fame:")
+    for individual in hof:
+        diff = shader.diff(name, params, tree, individual)
+        sys.stdout.writelines(diff)
+        print('')  # Ensure that we write a newline
