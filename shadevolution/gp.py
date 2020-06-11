@@ -13,8 +13,7 @@ def generate_individual(container, pset, genesis):
     :return: The generated individual.
     """
     individual = container(genesis)
-    gp.mutShrink(individual)
-    gp.mutInsert(individual, pset)
+    mutate_individual(individual, pset)
     return individual
 
 
@@ -32,12 +31,22 @@ def generate_pset(name, params, tree):
 
     pset.addTerminal(0.0, shader.Float)
     pset.addTerminal(1.0, shader.Float)
+    pset.addTerminal(2.0, shader.Float)
+    pset.addTerminal(-1.0, shader.Float)
+    pset.addTerminal(-2.0, shader.Float)
+    pset.addEphemeralConstant('e0', lambda: random.random(), shader.Float)
+    pset.addEphemeralConstant('e1', lambda: random.random(), shader.Float)
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)
+    pset.addTerminal('th', shader.Id)
+    pset.addTerminal('th', shader.Float)
+    pset.addTerminal('n', shader.Id)
+    pset.addTerminal('n', shader.Float)
 
     for i, (name, _) in enumerate(params):
         pset.renameArguments(**{f'ARG{i}': name})
+
     return pset
 
 
@@ -101,19 +110,27 @@ def delete_statement(individual, pset):
 # Mutates a single individual for the next generation by deleting, inserting or replacing subtrees
 def mutate_individual(individual, pset):
     rand = random.random()
-    # Mutate individual in one of three ways with equal probability
+
+    # Randomly mutate ephemeral values
     if rand < 0.25:
+        gp.mutEphemeral(individual, mode='one')
+
+    # Randomly remove branches with child
+    if 0.25 < rand < 0.75:
+        gp.mutShrink(individual)
+
+    # Mutate individual in one of three ways with equal probability
+    if rand < 0.33:
         return delete_statement(individual, pset)
-    if rand < 0.5:
+    if rand < 0.66:
         return gp.mutInsert(individual, pset)
-    if rand < 0.75:
-        return gp.mutShrink(individual)
 
     # Can throw errors if it cannot find a good replacement, in that case, return original to prevent further errors
     try:
         return gp.mutNodeReplacement(individual, pset)
     except:
         return individual,
+
 
 def setup_operators(toolbox, pset):
     """

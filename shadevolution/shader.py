@@ -138,7 +138,7 @@ class ReturnDef(FunDef):
         super().__init__(RET, [Val], Unit)
 
     def format(self, args, ctx):
-        return f'return {args[0]}'
+        return f'return {args[0]};'
 
 
 class UnaryOpDef(FunDef):

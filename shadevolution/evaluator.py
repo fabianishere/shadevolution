@@ -1,3 +1,5 @@
+import sys
+
 import moderngl
 import numpy as np
 from pyrr import Matrix44
@@ -83,6 +85,11 @@ class Evaluator:
         params = [('th', 'float'), ('n', 'float')]
 
         source = shader.write(name, params, individual)
+
+        # Print difference between shaders to console
+        sys.stdout.writelines(shader.diff(name, params, genesis, individual))
+        print('')
+
         view = self._prepare_view()
         projection = self._prepare_projection(aspect=16/9, fovy=40)
 
