@@ -349,8 +349,8 @@ class ShaderParser(c_ast.NodeVisitor):
 
     def visit_Assignment(self, node):
         atom = self._assign()
-        self.tree += [atom]
-        self.visit(node.lvalue)
+        name = self._id(node.lvalue.name)
+        self.tree += [atom, name]
         self.visit(node.rvalue)
 
     def visit_Return(self, node):
@@ -486,11 +486,12 @@ class ShaderWriter:
             # In case the SEQ has not been given any arguments, do not do anything: NOP
             return ''
         elif node.ret == Bool:
-            return '1' if node.name else '0'
+            return 'true' if node.name else 'false'
         else:
             return str(node.name)
 
-    def convert_primitive(self, node, args, ctx):
+    @staticmethod
+    def convert_primitive(node, args, ctx):
         if node.name not in FUN:
             raise ValueError(f'Unknown primitive {node.name}')
 

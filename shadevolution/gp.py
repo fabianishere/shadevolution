@@ -28,7 +28,9 @@ def mutate_individual(individual, pset):
 
     # Randomly mutate ephemeral values
     if rand < 0.25:
-        gp.mutEphemeral(individual, mode='one')
+        individual, = gp.mutEphemeral(individual, mode='one')
+    elif rand < 0.5:
+        individual, = mutInlineChild(individual)
 
     # Mutate individual in one of three ways with equal probability
     if rand < 0.33:
@@ -56,8 +58,7 @@ def generate_pset(name, params, tree):
     pset.addTerminal(2.0, shader.Float)
     pset.addTerminal(-1.0, shader.Float)
     pset.addTerminal(-2.0, shader.Float)
-    pset.addEphemeralConstant('e0', lambda: random.random(), shader.Float)
-    pset.addEphemeralConstant('e1', lambda: random.random(), shader.Float)
+    pset.addEphemeralConstant('e', lambda: random.random(), shader.Float)
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)
@@ -228,7 +229,8 @@ def mutDelete(individual):
 
 
 def mutNodeReplacement(individual, pset):
-    """Replace a randomly chosen primitive from *individual* by a randomly
+    """
+    Replace a randomly chosen primitive from *individual* by a randomly
     chosen primitive with the same number of arguments from the `pset`.
     attribute of the individual.
     :param individual: The normal or typed tree to be mutated.
@@ -260,19 +262,68 @@ def mutNodeReplacement(individual, pset):
         if term.arity != 0:
             term.arity = 0
         individual[index] = term
-    else:  # Primitive
+    elif not node.name.startswith('set'):
+        # Prevent replacement of set calls due to their order sensitivity
         prims = [p for p in pset.primitives[node.ret] if p.args == node.args]
-        individual[index] = random.choice(prims)
+        # Make sure that a replacement is available
+        if prims:
+            individual[index] = random.choice(prims)
 
     return individual,
 
 
-def _find_in_scope(individual, index):
+def mutInlineChild(individual):
     """
-    Determine the number of variables in scope for the node at the specified index.
-    :param individual: The individual to search in.
-    :param index: The index of the node to find its scope for.
-    :return: The variables and their types in scope.
+    Mutate the specified individual by replacing a random expression by one of its children.
+    :param individual: The individual to perform the mutation on.
+    :return: A tuple that consists of the mutated individual.
+    """
+    index = random.randrange(1, len(individual))
+    node = individual[index]
+
+    children = _find_children(individual, index)
+
+    # Bail out when the node has no children
+    if not children:
+        return individual,
+
+    child_index = random.choice(children)
+    child = individual[child_index]
+
+    # Test whether the types are compatible
+    if node.ret != child.ret:
+        return individual,
+
+    subtree = individual.searchSubtree(index)
+    child_tree = individual.searchSubtree(child_index)
+    individual = gp.PrimitiveTree(individual[:index] + individual[child_tree] + individual[subtree.stop:])
+
+    return individual,
+
+
+def _find_children(individual, index):
+    """
+    Find the children of a node at the given index.
+    :param individual: The individual to find the nodes in.
+    :param index: The index of the node to find the children of.
+    :return: A list of indices of the children.
+    """
+    node = individual[index]
+    children = []
+    i = index + 1
+    for _ in range(node.arity):
+        children.append(i)
+        subtree = individual.searchSubtree(i)
+        i = subtree.stop
+    return children
+
+
+def _find_ancestors(individual, index):
+    """
+    Find the ancestors of the node at the given index.
+    :param individual: The individual to find the nodes in.
+    :param index: The index of the node to find the ancestors of.
+    :return: A list of indices that represent the ancestors.
     """
     visited = 0
     ancestors = []
@@ -283,9 +334,18 @@ def _find_in_scope(individual, index):
             visited = 0
         else:
             visited = (visited - arity) + 1
+    return ancestors
 
+
+def _find_in_scope(individual, index):
+    """
+    Determine the number of variables in scope for the node at the specified index.
+    :param individual: The individual to search in.
+    :param index: The index of the node to find its scope for.
+    :return: The variables and their types in scope.
+    """
     res = {}
-    for ancestor in ancestors:
+    for ancestor in _find_ancestors(individual, index):
         i = ancestor + 1
         while i < index:
             subtree = individual.searchSubtree(i)
