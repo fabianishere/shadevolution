@@ -123,7 +123,7 @@ def setup_operators(toolbox, pset):
     """
     toolbox.register("mate", gp.cxOnePoint)
     toolbox.register("mutate", mutate_individual, pset=pset)
-    toolbox.register("select", tools.selTournament, tournsize=16)
+    toolbox.register("select", tools.selNSGA2)
 
 
 def swap_children(tree, idx):
