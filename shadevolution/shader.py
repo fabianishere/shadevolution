@@ -126,7 +126,7 @@ class IfDef(FunDef):
         super().__init__(IF, [Bool, Any, Any], Unit)
 
     def format(self, args, ctx):
-        return f'''if ({args[0]}) {{\n{textwrap.indent(args[1], '    ')}\n}} else {{\n{textwrap.indent(args[2], '    ')}\n}}'''
+        return f'''if ({args[0]}) {{\n{textwrap.indent(args[1], '    ')};\n}} else {{\n{textwrap.indent(args[2], '    ')};\n}}'''
 
 
 class ReturnDef(FunDef):
