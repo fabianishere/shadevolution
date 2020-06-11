@@ -126,7 +126,7 @@ class IfDef(FunDef):
         super().__init__(IF, [Bool, Any, Any], Unit)
 
     def format(self, args, ctx):
-        return f'''if ({args[0]}) {{\n{textwrap.indent(args[1], '    ')}\n}} else {{\n{textwrap.indent(args[2], '    ')}\n}}'''
+        return f'''if ({args[0]}) {{\n{textwrap.indent(args[1], '    ')};\n}} else {{\n{textwrap.indent(args[2], '    ')};\n}}'''
 
 
 class ReturnDef(FunDef):
@@ -220,6 +220,13 @@ FUN = {
     'max/2': FunDef('max', [Float, Float], Float)
 }
 
+type_map = {
+    'float': Float,
+    'double': Float,
+    'int': Float,  # Integers are implicitly converted to float
+    'bool': Bool
+}
+
 
 def parse(node):
     """
@@ -236,7 +243,10 @@ class ShaderParser(c_ast.NodeVisitor):
     """
     A visitor which converts a shader definition into a DEAP genetic programming tree.
     """
-    results = []
+
+    def __init__(self):
+        self.results = []
+        self.vars = {}
 
     def parse(self, node):
         """
@@ -246,12 +256,21 @@ class ShaderParser(c_ast.NodeVisitor):
         :return: A primitive tree for DEAP.
         """
         self.results = []
+        self.vars = {}
         self.visit(node)
         return self.results
 
     def visit_FuncDef(self, node):
         name = node.decl.name
         params = list([(decl.name, decl.type.type.names[0]) for decl in node.decl.type.args.params])
+
+        for name, type in params:
+            if type in type_map:
+                real_type = type_map[type]
+            else:
+                real_type = Val
+            self.vars[name] = real_type
+
         self.tree = gp.PrimitiveTree([])
         self.visit(node.body)
         self.results.append((name, params, self.tree))
@@ -268,13 +287,24 @@ class ShaderParser(c_ast.NodeVisitor):
     def visit_Decl(self, node):
         atom = self._assign()
         name = self._id(node.name)
+        type = node.type.type.names[0]
+
+        if type in type_map:
+            real_type = type_map[type]
+        else:
+            real_type = Val
+        self.vars[node.name] = real_type
 
         if node.init:
             self.tree += [atom, name]
             self.visit(node.init)
 
     def visit_Constant(self, node):
-        atom = self._literal(node.value, Val)
+        if node.type in type_map:
+            type = type_map[node.type]
+        else:
+            type = Val
+        atom = self._literal(node.value, type)
         self.tree += [atom]
 
     def visit_UnaryOp(self, node):
@@ -311,13 +341,16 @@ class ShaderParser(c_ast.NodeVisitor):
             self.tree += [nop]
 
     def visit_ID(self, node):
-        atom = self._var(node.name, Val)
+        if node.name not in self.vars:
+            raise ValueError('Variable referenced before declaration')
+
+        atom = self._var(node.name, self.vars[node.name])
         self.tree += [atom]
 
     def visit_Assignment(self, node):
         atom = self._assign()
-        self.tree += [atom]
-        self.visit(node.lvalue)
+        name = self._id(node.lvalue.name)
+        self.tree += [atom, name]
         self.visit(node.rvalue)
 
     def visit_Return(self, node):
@@ -453,11 +486,12 @@ class ShaderWriter:
             # In case the SEQ has not been given any arguments, do not do anything: NOP
             return ''
         elif node.ret == Bool:
-            return '1' if node.name else '0'
+            return 'true' if node.name else 'false'
         else:
             return str(node.name)
 
-    def convert_primitive(self, node, args, ctx):
+    @staticmethod
+    def convert_primitive(node, args, ctx):
         if node.name not in FUN:
             raise ValueError(f'Unknown primitive {node.name}')
 

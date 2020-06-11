@@ -11,76 +11,6 @@ from pycparser import parse_file
 from shadevolution import shader, gp as sgp
 from shadevolution.evaluator import Evaluator
 
-def run_generations(population, toolbox, cxpb, mutpb, ngen, stats=None,
-             halloffame=None, verbose=__debug__):
-    logbook = tools.Logbook()
-    logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
-
-    # Evaluate the individuals with an invalid fitness
-    invalid_ind = [ind for ind in population if not ind.fitness.valid]
-    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-    for ind, fit in zip(invalid_ind, fitnesses):
-        ind.fitness.values = fit
-
-    if halloffame is not None:
-        halloffame.update(population)
-
-    record = stats.compile(population) if stats else {}
-    logbook.record(gen=0, nevals=len(invalid_ind), **record)
-    if verbose:
-        print(logbook.stream)
-
-    # Begin the generational process
-    offspring = []
-    mutated = []
-    total = len(population)
-    for gen in range(1, ngen + 1):
-        # Select the next generation individuals
-        population = toolbox.select(population, total)
-        population = tools.selTournamentDCD(population, total)
-
-        # Vary the pool of individuals
-        offspring = [toolbox.clone(ind) for ind in population]
-        # Apply crossover and mutation on the offspring
-        for i in range(1, len(offspring), 2):
-            if random.random() < cxpb:
-                offspring[i - 1], offspring[i] = toolbox.mate(offspring[i - 1],
-                                                              offspring[i])
-                del offspring[i - 1].fitness.values, offspring[i].fitness.values
-
-        mutated = [toolbox.clone(ind) for ind in offspring]
-        for i in range(len(offspring)):
-            if random.random() < mutpb:
-                mutated[i], = toolbox.mutate(offspring[i])
-                del mutated[i].fitness.values
-
-        # Evaluate the offspring individuals with an invalid fitness
-        invalid_ind_off = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind_off)
-        for ind, fit in zip(invalid_ind_off, fitnesses):
-            ind.fitness.values = fit
-
-        # Evaluate the mutated individuals with an invalid fitness
-        invalid_ind_mut = [ind for ind in mutated if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind_mut)
-        for ind, fit in zip(invalid_ind_mut, fitnesses):
-            ind.fitness.values = fit
-
-        # Add the offspring and mutated individuals to the population as per the paper
-        population.extend(offspring)
-        population.extend(mutated)
-
-        # Update the hall of fame with the generated individuals
-        if halloffame is not None:
-            halloffame.update(population)
-
-        # Append the current generation statistics to the logbook
-        record = stats.compile(population) if stats else {}
-        logbook.record(gen=gen, nevals=len(invalid_ind_off)+len(invalid_ind_mut), **record)
-        if verbose:
-            print(logbook.stream)
-
-    return population, logbook
 
 def run(pop_size, ngen, cxpb, mutpb):
     """
@@ -126,8 +56,8 @@ def run(pop_size, ngen, cxpb, mutpb):
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    pop, log = run_generations(pop, toolbox, cxpb=cxpb, mutpb=mutpb, ngen=ngen,
-                                   stats=stats, halloffame=hof, verbose=True)
+    pop, log = sgp.algorithm(pop, toolbox, cxpb=cxpb, mutpb=mutpb, ngen=ngen,
+                             stats=stats, halloffame=hof, verbose=True)
 
     print("Hall of Fame:")
     for individual in hof:
@@ -138,14 +68,18 @@ def run(pop_size, ngen, cxpb, mutpb):
 
 def main():
     parser = argparse.ArgumentParser(description='Optimize shaders through genetic programming.')
-    parser.add_argument('--population-size', type=int, default=25, help='size of the initial population',
+    parser.add_argument('--population-size', type=int, default=24, help='size of the initial population',
                         dest='pop_size')
     parser.add_argument('--generations', type=int, default=5, help='number of generations to perform',
                         dest='ngen')
     parser.add_argument('--cross-over', type=float, default=0.5, help='probability of a cross-over event',
                         dest='cxpb')
     parser.add_argument('--mutation', type=float, default=0.2, help='probability of a mutation even', dest='mutpb')
+    parser.add_argument('--seed', type=int, default=False, help='seed for rng', dest='seed')
     args = parser.parse_args()
+
+    if args.seed is not False:
+        random.seed(args.seed)
 
     run(args.pop_size, args.ngen, args.cxpb, args.mutpb)
 
