@@ -43,10 +43,10 @@ def generate_pset(name, params, tree):
 
 def setup_creator():
     """
-    Setup the creator instance for DEAP.
+    Setup the creator instance for DEAP. Use negative weights as we want to minimize error and frame time
     :return: The creator instance.
     """
-    creator.create("FitnessMin", base.Fitness, weights=(1.0, 1.0))
+    creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
     return creator
 

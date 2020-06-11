@@ -31,7 +31,7 @@ if __name__ == "__main__":
     toolbox.register("evaluate", evaluator.eval, genesis=tree, baseline=baseline)
 
     pop = toolbox.population(n=100)
-    hof = tools.HallOfFame(1)
+    hof = tools.ParetoFront()  # Child of tools.HallOfFame
     stats = tools.Statistics(lambda ind: ind.fitness.values)
     stats.register("avg", np.mean, axis=0)
     stats.register("std", np.std, axis=0)
