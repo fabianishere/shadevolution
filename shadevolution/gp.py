@@ -140,20 +140,87 @@ def setup_operators(toolbox, pset):
     toolbox.register("select", tools.selNSGA2)
 
 
-def swap_children(tree, idx):
+def algorithm(population, toolbox, cxpb, mutpb, ngen, stats=None,
+              halloffame=None, verbose=__debug__):
     """
-    Swap two children of a node in the tree.
-    :param tree: The tree to swap the children in.
-    :param idx: The index of the node to swap the children.
+    Run the genetic algorithm as described in the paper.
+
+    :param population: The initial population to use.
+    :param toolbox: The toolbox to use for the iterations.
+    :param cxpb: The probability of a cross-over event.
+    :param mutpb: The probability of a mutation event.
+    :param ngen: The number of generations to perform.
+    :param stats: The stats object to record the statistics with.
+    :param halloffame: The HallOfFame object to record the fittest individuals.
+    :param verbose: A flag to enable verbose printing.
+    :return: A tuple consisting of the final population and the logbook.
     """
-    slice = tree.searchSubtree(idx)
-    subtree = tree[slice]
-    arity = subtree[0].arity
+    logbook = tools.Logbook()
+    logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
 
-    if arity <= 0:
-        return
+    # Evaluate the individuals with an invalid fitness
+    invalid_ind = [ind for ind in population if not ind.fitness.valid]
+    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+    for ind, fit in zip(invalid_ind, fitnesses):
+        ind.fitness.values = fit
 
-    i = random.randrange(arity)
-    j = random.randrange(arity)
-    subtree[i], subtree[j] = subtree[j], subtree[i]
-    tree[slice] = subtree
+    if halloffame is not None:
+        halloffame.update(population)
+
+    record = stats.compile(population) if stats else {}
+    logbook.record(gen=0, nevals=len(invalid_ind), **record)
+    if verbose:
+        print(logbook.stream)
+
+    # Begin the generational process
+    offspring = []
+    mutated = []
+    total = len(population)
+    for gen in range(1, ngen + 1):
+        # Select the next generation individuals
+        population.extend(offspring)
+        population.extend(mutated)
+        population = toolbox.select(population, total)
+        population = tools.selTournamentDCD(population, total)
+
+        # Vary the pool of individuals
+        offspring = [toolbox.clone(ind) for ind in population]
+        # Apply crossover and mutation on the offspring
+        for i in range(1, len(offspring), 2):
+            if random.random() < cxpb:
+                offspring[i - 1], offspring[i] = toolbox.mate(offspring[i - 1],
+                                                              offspring[i])
+                del offspring[i - 1].fitness.values, offspring[i].fitness.values
+
+        mutated = [toolbox.clone(ind) for ind in offspring]
+        for i in range(len(offspring)):
+            if random.random() < mutpb:
+                mutated[i], = toolbox.mutate(offspring[i])
+                del mutated[i].fitness.values
+
+        # Evaluate the offspring individuals with an invalid fitness
+        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+        for ind, fit in zip(invalid_ind, fitnesses):
+            ind.fitness.values = fit
+
+        # Evaluate the mutated individuals with an invalid fitness
+        invalid_ind = [ind for ind in mutated if not ind.fitness.valid]
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+        for ind, fit in zip(invalid_ind, fitnesses):
+            ind.fitness.values = fit
+
+        # Update the hall of fame with the generated individuals
+        if halloffame is not None:
+            halloffame.update(offspring)
+
+        # Replace the current population by the offspring
+        population[:] = offspring
+
+        # Append the current generation statistics to the logbook
+        record = stats.compile(population) if stats else {}
+        logbook.record(gen=gen, nevals=len(invalid_ind), **record)
+        if verbose:
+            print(logbook.stream)
+
+    return population, logbook
