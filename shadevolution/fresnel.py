@@ -1,3 +1,4 @@
+import moderngl
 from pyrr import Vector3
 
 FRESNEL_BASELINE = '''
@@ -127,6 +128,8 @@ class Fresnel:
         :param view: The view matrix.
         :param projection: The projection matrix.
         """
+        self.ctx.enable_only(moderngl.DEPTH_TEST | moderngl.CULL_FACE | moderngl.BLEND)
+
         mvp = projection * view * model
 
         program['normalModel'].write(model.T.inverse)

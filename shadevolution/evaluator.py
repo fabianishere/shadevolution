@@ -26,7 +26,7 @@ class Evaluator:
         self.repeat = repeat
 
         self.reference_program = fresnel.create_program(self.ctx)
-        self.fbo = self.ctx.simple_framebuffer(size)
+        self.fbo = self.ctx.simple_framebuffer(size, 4)
         self.vao = models.load_crate()
         self.fresnel = fresnel.Fresnel(self.ctx, self.vao)
 
@@ -54,10 +54,11 @@ class Evaluator:
 
         try:
             for i in range(self.repeat):
-                model = self._prepare_model(0)
+                model = self._prepare_model(0.05 * i)
 
                 # Render in our framebuffer object
                 self.fbo.use()
+                self.fbo.clear()
                 self.fresnel.render(program, model, view, projection)
 
                 raw = self.fbo.read(components=3, dtype='f4')
@@ -65,12 +66,10 @@ class Evaluator:
                 fb = fb.reshape((len(fb) // 3, 3))
                 res.append(fb)
 
-                self.fbo.clear()
-
                 # Render demonstration
-                # self.wnd.use()
-                # self._render_window(program, model, view, projection)
-                # self.wnd.swap_buffers()
+                self.wnd.use()
+                self._render_window(program, model, view, projection)
+                self.wnd.swap_buffers()
 
         finally:
             # Make sure we render again to the window
@@ -94,16 +93,18 @@ class Evaluator:
         view = self._prepare_view()
         projection = self._prepare_projection(aspect=16/9, fovy=50)
 
+        frame_durations = []
+        errors = []
+
         try:
             program = fresnel.create_program(self.ctx, source)
 
-            frame_durations = []
-
             for i in range(self.repeat):
-                model = self._prepare_model(0)
+                model = self._prepare_model(0.05 * i)
 
                 # Render in our framebuffer object
                 self.fbo.use()
+                self.fbo.clear()
 
                 query = self.fresnel.render(program, model, view, projection)
                 frame_durations.append(query.elapsed)
@@ -115,34 +116,23 @@ class Evaluator:
                 fb = np.frombuffer(raw, dtype='f4')
                 fb = fb.reshape((len(fb) // 3, 3))
 
-                err = np.abs(fb - baseline[i])
-                print(np.mean(fb), np.mean(baseline[i]), np.mean(err))
-
-                self.fbo.clear()
+                err = np.linalg.norm(fb - baseline[i])
+                errors.append(err)
 
                 # Render demonstration
-                #self.wnd.use()
-                #self._render_window(program, model, view, projection)
+                self.wnd.use()
+                self._render_window(program, model, view, projection)
                 self.wnd.swap_buffers()
-
-
-
         except Exception as e:
             # Make sure we can render again to the window
             self.wnd.use()
+            return 100000000, 10000000
 
-            print(e)
-            # diff = shader.diff(name, params, genesis, individual)
-            # sys.stdout.writelines(diff)
-            return False,
-
-        return np.mean(frame_durations),
+        return np.mean(frame_durations), np.mean(errors)
 
     def _render_window(self, program, model, view, projection):
         """
         Render a demo of the current shaders at work to screen.
-
-        :param time: The point in time to render.
         """
         self.ctx.clear()
         self.ctx.enable_only(moderngl.DEPTH_TEST | moderngl.CULL_FACE | moderngl.BLEND)

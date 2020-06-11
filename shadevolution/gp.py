@@ -13,8 +13,8 @@ def generate_individual(container, pset, genesis):
     :return: The generated individual.
     """
     individual = container(genesis)
-    #gp.mutShrink(individual)
-    #gp.mutInsert(individual, pset)
+    gp.mutShrink(individual)
+    gp.mutInsert(individual, pset)
     return individual
 
 
@@ -46,7 +46,7 @@ def setup_creator():
     Setup the creator instance for DEAP.
     :return: The creator instance.
     """
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator.create("FitnessMin", base.Fitness, weights=(1.0, 1.0))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
     return creator
 
@@ -72,7 +72,7 @@ def setup_operators(toolbox, pset):
     :param pset: The primitive set to pick new nodes from.
     """
     toolbox.register("mate", gp.cxOnePoint)
-    toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
+    toolbox.register("mutate", gp.mutInsert, pset=pset)
     toolbox.register("select", tools.selTournament, tournsize=16)
 
 
