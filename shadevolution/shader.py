@@ -220,6 +220,13 @@ FUN = {
     'max/2': FunDef('max', [Float, Float], Float)
 }
 
+type_map = {
+    'float': Float,
+    'double': Float,
+    'int': Float,  # Integers are implicitly converted to float
+    'bool': Bool
+}
+
 
 def parse(node):
     """
@@ -258,7 +265,11 @@ class ShaderParser(c_ast.NodeVisitor):
         params = list([(decl.name, decl.type.type.names[0]) for decl in node.decl.type.args.params])
 
         for name, type in params:
-            self.vars[name] = type
+            if type in type_map:
+                real_type = type_map[type]
+            else:
+                real_type = Val
+            self.vars[name] = real_type
 
         self.tree = gp.PrimitiveTree([])
         self.visit(node.body)
@@ -278,10 +289,8 @@ class ShaderParser(c_ast.NodeVisitor):
         name = self._id(node.name)
         type = node.type.type.names[0]
 
-        if type == 'float' or type == 'double' or type == 'int':
-            real_type = Float
-        elif node.type == 'bool':
-            real_type = Bool
+        if type in type_map:
+            real_type = type_map[type]
         else:
             real_type = Val
         self.vars[node.name] = real_type
@@ -291,10 +300,8 @@ class ShaderParser(c_ast.NodeVisitor):
             self.visit(node.init)
 
     def visit_Constant(self, node):
-        if node.type == 'float' or node.type == 'double' or node.type == 'int':
-            type = Float
-        elif node.type == 'bool':
-            type = Bool
+        if node.type in type_map:
+            type = type_map[node.type]
         else:
             type = Val
         atom = self._literal(node.value, type)

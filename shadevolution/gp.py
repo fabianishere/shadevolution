@@ -17,6 +17,28 @@ def generate_individual(container, pset, genesis):
     return individual
 
 
+def mutate_individual(individual, pset):
+    """
+    Mutate a single individual for the next generation by deleting, inserting or replacing subtrees
+    :param individual: The individual to mutate.
+    :param pset:
+    :return:
+    """
+    rand = random.random()
+
+    # Randomly mutate ephemeral values
+    if rand < 0.25:
+        gp.mutEphemeral(individual, mode='one')
+
+    # Mutate individual in one of three ways with equal probability
+    if rand < 0.33:
+        return mutDelete(individual)
+    elif rand < 0.66:
+        return gp.mutInsert(individual, pset)
+    else:
+        return mutNodeReplacement(individual, pset)
+
+
 def generate_pset(name, params, tree):
     """
     Generate the primitive set for the specified shader function.
@@ -39,10 +61,6 @@ def generate_pset(name, params, tree):
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)
-    pset.addTerminal('th', shader.Id)
-    pset.addTerminal('th', shader.Float)
-    pset.addTerminal('n', shader.Id)
-    pset.addTerminal('n', shader.Float)
 
     for i, (name, _) in enumerate(params):
         pset.renameArguments(**{f'ARG{i}': name})
@@ -74,61 +92,6 @@ def setup_toolbox(creator, pset, genesis):
     return toolbox
 
 
-def delete_statement(individual, pset):
-    index = random.randrange(len(individual))
-    prim = individual[index]
-    slice = individual.searchSubtree(index)
-    name = prim.name.split('/')[0]
-
-    # In case the statement is an assignment (set), then set the right hand side to the default terminal of the same
-    # type to prevent undefined variable errors
-    if name == 'set':
-        ret_type = individual[index + 2].ret
-        slice_ = individual.searchSubtree(index + 2)
-        del individual[slice_]
-        if ret_type == shader.Float:
-            node = gp.Terminal(0.0, False, shader.Float)
-        elif ret_type == shader.Bool:
-            node = gp.Terminal(False, False, shader.Bool)
-        else:
-            node = gp.Terminal('void', False, shader.Unit)
-        individual.insert(index + 2, node)
-    elif prim.ret == shader.Float:
-        node = gp.Terminal(0.0, False, shader.Float)
-        del individual[slice]
-        individual.insert(index, node)
-    elif prim.ret == shader.Bool:
-        node = gp.Terminal(False, False, shader.Bool)
-        del individual[slice]
-        individual.insert(index, node)
-    elif prim.ret == shader.Unit:
-        node = gp.Terminal('void', False, shader.Unit)
-        del individual[slice]
-        individual.insert(index, node)
-    return individual,
-
-
-# Mutates a single individual for the next generation by deleting, inserting or replacing subtrees
-def mutate_individual(individual, pset):
-    rand = random.random()
-
-    # Randomly mutate ephemeral values
-    if rand < 0.25:
-        gp.mutEphemeral(individual, mode='one')
-
-    # Mutate individual in one of three ways with equal probability
-    if rand < 0.33:
-        return delete_statement(individual, pset)
-    if rand < 0.66:
-        return gp.mutInsert(individual, pset)
-
-    # Can throw errors if it cannot find a good replacement, in that case, return original to prevent further errors
-    try:
-        return gp.mutNodeReplacement(individual, pset)
-    except:
-        return individual,
-
-
 def setup_operators(toolbox, pset):
     """
     Setup the genetic operators to be used during the evolution.
@@ -144,7 +107,6 @@ def algorithm(population, toolbox, cxpb, mutpb, ngen, stats=None,
               halloffame=None, verbose=__debug__):
     """
     Run the genetic algorithm as described in the paper.
-
     :param population: The initial population to use.
     :param toolbox: The toolbox to use for the iterations.
     :param cxpb: The probability of a cross-over event.
@@ -224,3 +186,113 @@ def algorithm(population, toolbox, cxpb, mutpb, ngen, stats=None,
             print(logbook.stream)
 
     return population, logbook
+
+
+def mutDelete(individual):
+    """
+    Mutate the tree by randomly selecting and deleting a subtree of the tree, replacing them with the unit value of
+    their return type.
+    :param individual: The tree to mutate.
+    """
+    index = random.randrange(len(individual))
+    prim = individual[index]
+    slice_ = individual.searchSubtree(index)
+    name = prim.name.split('/')[0]
+
+    # In case the statement is an assignment (set), then set the right hand side to the default terminal of the same
+    # type to prevent undefined variable errors
+    if name == 'set':
+        ret_type = individual[index + 2].ret
+        slice_ = individual.searchSubtree(index + 2)
+        del individual[slice_]
+        if ret_type == shader.Float:
+            node = gp.Terminal(0.0, False, shader.Float)
+        elif ret_type == shader.Bool:
+            node = gp.Terminal(False, False, shader.Bool)
+        else:
+            node = gp.Terminal('void', False, shader.Unit)
+        individual.insert(index + 2, node)
+    elif prim.ret == shader.Float:
+        node = gp.Terminal(0.0, False, shader.Float)
+        del individual[slice_]
+        individual.insert(index, node)
+    elif prim.ret == shader.Bool:
+        node = gp.Terminal(False, False, shader.Bool)
+        del individual[slice_]
+        individual.insert(index, node)
+    elif prim.ret == shader.Unit:
+        node = gp.Terminal('void', False, shader.Unit)
+        del individual[slice_]
+        individual.insert(index, node)
+    return individual,
+
+
+def mutNodeReplacement(individual, pset):
+    """Replace a randomly chosen primitive from *individual* by a randomly
+    chosen primitive with the same number of arguments from the `pset`.
+    attribute of the individual.
+    :param individual: The normal or typed tree to be mutated.
+    :returns: A tuple of one tree.
+    """
+    if len(individual) < 2:
+        return individual,
+
+    index = random.randrange(1, len(individual))
+    node = individual[index]
+
+    if node.arity == 0:  # Terminal
+        terms = pset.terminals[node.ret]
+        var = list([name for name, type in _find_in_scope(individual, index).items() if type == node.ret])
+        choice = len(terms) + len(var)
+
+        # If there is no replacement available: abort
+        if choice <= 0:
+            return individual,
+
+        i = random.randrange(choice)
+
+        if i < len(terms):
+            term = random.choice(terms)
+        else:
+            term = gp.Terminal(random.choice(var), True, node.ret)
+
+        # Fix for ephemeral constants
+        if term.arity != 0:
+            term.arity = 0
+        individual[index] = term
+    else:  # Primitive
+        prims = [p for p in pset.primitives[node.ret] if p.args == node.args]
+        individual[index] = random.choice(prims)
+
+    return individual,
+
+
+def _find_in_scope(individual, index):
+    """
+    Determine the number of variables in scope for the node at the specified index.
+    :param individual: The individual to search in.
+    :param index: The index of the node to find its scope for.
+    :return: The variables and their types in scope.
+    """
+    visited = 0
+    ancestors = []
+    for j in reversed(range(index)):
+        arity = individual[j].arity
+        if arity > visited:
+            ancestors.append(j)
+            visited = 0
+        else:
+            visited = (visited - arity) + 1
+
+    res = {}
+    for ancestor in ancestors:
+        i = ancestor + 1
+        while i < index:
+            subtree = individual.searchSubtree(i)
+            node = individual[i]
+
+            if node.name.startswith('set'):
+                res[individual[i + 1].name] = individual[i + 2].ret
+            i = subtree.stop
+
+    return res
