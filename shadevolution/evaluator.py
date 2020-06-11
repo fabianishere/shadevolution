@@ -1,5 +1,3 @@
-import sys
-
 import moderngl
 import numpy as np
 from pyrr import Matrix44
@@ -30,11 +28,7 @@ class Evaluator:
         self.vao = models.load_crate()
         self.fresnel = fresnel.Fresnel(self.ctx, self.vao)
 
-        self.duration_renderer = plot.FigureRenderer(self.ctx, xlabel='Time', ylabel='Frame Duration [ns]',
-                                                     figsize=(600, 200))
-        self.count = 0
-        self.duration_line = plot.Line()
-        self.duration_renderer.add(self.duration_line)
+        self.reporter = plot.VisualizationReporter()
 
     def __del__(self):
         self.vao.release()
@@ -47,7 +41,7 @@ class Evaluator:
         :return: The baseline as a Numpy array representing the framebuffer.
         """
         view = self._prepare_view()
-        projection = self._prepare_projection(aspect=16/9, fovy=50)
+        projection = self._prepare_projection(aspect=16/9, fovy=40)
 
         program = self.reference_program
         res = []
@@ -70,7 +64,6 @@ class Evaluator:
                 self.wnd.use()
                 self._render_window(program, model, view, projection)
                 self.wnd.swap_buffers()
-
         finally:
             # Make sure we render again to the window
             self.wnd.use()
@@ -91,7 +84,7 @@ class Evaluator:
 
         source = shader.write(name, params, individual)
         view = self._prepare_view()
-        projection = self._prepare_projection(aspect=16/9, fovy=50)
+        projection = self._prepare_projection(aspect=16/9, fovy=40)
 
         frame_durations = []
         errors = []
@@ -123,10 +116,13 @@ class Evaluator:
                 self.wnd.use()
                 self._render_window(program, model, view, projection)
                 self.wnd.swap_buffers()
+
+                self.reporter.report(query.elapsed, err)
         except Exception as e:
+            print(e)
             # Make sure we can render again to the window
             self.wnd.use()
-            return 100000000, 10000000
+            return 35000000, 10000
 
         return np.mean(frame_durations), np.mean(errors)
 
@@ -137,28 +133,11 @@ class Evaluator:
         self.ctx.clear()
         self.ctx.enable_only(moderngl.DEPTH_TEST | moderngl.CULL_FACE | moderngl.BLEND)
 
-        projection_left = Matrix44.from_translation((-0.5, 0.25, 0), dtype='f4') * projection
-        projection_right = Matrix44.from_translation((0.5, 0.25, 0), dtype='f4') * projection
+        projection_left = Matrix44.from_translation((-0.5, 0, 0), dtype='f4') * projection
+        projection_right = Matrix44.from_translation((0.5, 0, 0), dtype='f4') * projection
 
         self.fresnel.render(self.reference_program, model, view, projection_left)
         self.fresnel.render(program, model, view, projection_right)
-
-        self._render_stats()
-
-    def _render_stats(self):
-        """
-        Render the statistics on screen.
-        """
-        view = self._prepare_view(x=0, y=0)
-
-        projection = self._prepare_projection(self.wnd.aspect_ratio)
-        projection_bottom_left = Matrix44.from_translation((-0.5, -0.6, 0), dtype='f4') * \
-                                 Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
-
-        projection_bottom_right = Matrix44.from_translation((0.5, -0.6, 0), dtype='f4') * \
-                                  Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
-
-        self.duration_renderer.render(projection_bottom_left * view)
 
     @staticmethod
     def _prepare_model(rot):
@@ -184,7 +163,7 @@ class Evaluator:
         )
 
     @staticmethod
-    def _prepare_projection(aspect, fovy=80):
+    def _prepare_projection(aspect, fovy=60):
         """
         Prepare the projection matrix.
         """
