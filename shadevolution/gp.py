@@ -29,8 +29,8 @@ def mutate_individual(individual, pset):
     # Randomly mutate ephemeral values
     if rand < 0.25:
         individual, = gp.mutEphemeral(individual, mode='one')
-    elif rand < 0.5:
-        individual, = mutInlineChild(individual)
+    # elif rand < 0.5:
+    #     individual, = mutInlineChild(individual)
 
     # Mutate individual in one of three ways with equal probability
     if rand < 0.33:
@@ -58,7 +58,7 @@ def generate_pset(name, params, tree):
     pset.addTerminal(2.0, shader.Float)
     pset.addTerminal(-1.0, shader.Float)
     pset.addTerminal(-2.0, shader.Float)
-    pset.addEphemeralConstant('e', lambda: random.random(), shader.Float)
+    # pset.addEphemeralConstant('e', lambda: random.random(), shader.Float)
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)

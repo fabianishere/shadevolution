@@ -68,9 +68,9 @@ def run(pop_size, ngen, cxpb, mutpb):
 
 def main():
     parser = argparse.ArgumentParser(description='Optimize shaders through genetic programming.')
-    parser.add_argument('--population-size', type=int, default=24, help='size of the initial population',
+    parser.add_argument('--population-size', type=int, default=300, help='size of the initial population',
                         dest='pop_size')
-    parser.add_argument('--generations', type=int, default=5, help='number of generations to perform',
+    parser.add_argument('--generations', type=int, default=100, help='number of generations to perform',
                         dest='ngen')
     parser.add_argument('--cross-over', type=float, default=0.5, help='probability of a cross-over event',
                         dest='cxpb')
