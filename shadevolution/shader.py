@@ -236,7 +236,10 @@ class ShaderParser(c_ast.NodeVisitor):
     """
     A visitor which converts a shader definition into a DEAP genetic programming tree.
     """
-    results = []
+
+    def __init__(self):
+        self.results = []
+        self.vars = {}
 
     def parse(self, node):
         """
@@ -246,12 +249,17 @@ class ShaderParser(c_ast.NodeVisitor):
         :return: A primitive tree for DEAP.
         """
         self.results = []
+        self.vars = {}
         self.visit(node)
         return self.results
 
     def visit_FuncDef(self, node):
         name = node.decl.name
         params = list([(decl.name, decl.type.type.names[0]) for decl in node.decl.type.args.params])
+
+        for name, type in params:
+            self.vars[name] = type
+
         self.tree = gp.PrimitiveTree([])
         self.visit(node.body)
         self.results.append((name, params, self.tree))
@@ -268,13 +276,28 @@ class ShaderParser(c_ast.NodeVisitor):
     def visit_Decl(self, node):
         atom = self._assign()
         name = self._id(node.name)
+        type = node.type.type.names[0]
+
+        if type == 'float' or type == 'double' or type == 'int':
+            real_type = Float
+        elif node.type == 'bool':
+            real_type = Bool
+        else:
+            real_type = Val
+        self.vars[node.name] = real_type
 
         if node.init:
             self.tree += [atom, name]
             self.visit(node.init)
 
     def visit_Constant(self, node):
-        atom = self._literal(node.value, Val)
+        if node.type == 'float' or node.type == 'double' or node.type == 'int':
+            type = Float
+        elif node.type == 'bool':
+            type = Bool
+        else:
+            type = Val
+        atom = self._literal(node.value, type)
         self.tree += [atom]
 
     def visit_UnaryOp(self, node):
@@ -311,7 +334,10 @@ class ShaderParser(c_ast.NodeVisitor):
             self.tree += [nop]
 
     def visit_ID(self, node):
-        atom = self._var(node.name, Val)
+        if node.name not in self.vars:
+            raise ValueError('Variable referenced before declaration')
+
+        atom = self._var(node.name, self.vars[node.name])
         self.tree += [atom]
 
     def visit_Assignment(self, node):
