@@ -113,7 +113,7 @@ def mutate_individual(individual, pset):
     try:
         return gp.mutNodeReplacement(individual, pset)
     except:
-        return individual
+        return individual,
 
 def setup_operators(toolbox, pset):
     """
