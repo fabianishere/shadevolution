@@ -32,9 +32,10 @@ def generate_pset(name, params, tree):
     pset.addTerminal(0.0, shader.Float)
     pset.addTerminal(1.0, shader.Float)
     pset.addTerminal(2.0, shader.Float)
+    pset.addTerminal(-1.0, shader.Float)
+    pset.addTerminal(-2.0, shader.Float)
     pset.addEphemeralConstant('e0', lambda: random.random(), shader.Float)
     pset.addEphemeralConstant('e1', lambda: random.random(), shader.Float)
-    pset.addEphemeralConstant('e2', lambda: random.random(), shader.Float)
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)
@@ -129,6 +130,7 @@ def mutate_individual(individual, pset):
         return gp.mutNodeReplacement(individual, pset)
     except:
         return individual,
+
 
 def setup_operators(toolbox, pset):
     """
