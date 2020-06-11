@@ -102,10 +102,12 @@ def delete_statement(individual, pset):
 def mutate_individual(individual, pset):
     rand = random.random()
     # Mutate individual in one of three ways with equal probability
-    if rand < 0.33:
+    if rand < 0.25:
         return delete_statement(individual, pset)
-    if rand < 0.66:
+    if rand < 0.5:
         return gp.mutInsert(individual, pset)
+    if rand < 0.75:
+        return gp.mutShrink(individual)
 
     # Can throw errors if it cannot find a good replacement, in that case, return original to prevent further errors
     try:
