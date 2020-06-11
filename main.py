@@ -36,8 +36,6 @@ def run_generations(population, toolbox, cxpb, mutpb, ngen, stats=None,
     total = len(population)
     for gen in range(1, ngen + 1):
         # Select the next generation individuals
-        population.extend(offspring)
-        population.extend(mutated)
         population = toolbox.select(population, total)
         population = tools.selTournamentDCD(population, total)
 
@@ -57,27 +55,28 @@ def run_generations(population, toolbox, cxpb, mutpb, ngen, stats=None,
                 del mutated[i].fitness.values
 
         # Evaluate the offspring individuals with an invalid fitness
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
+        invalid_ind_off = [ind for ind in offspring if not ind.fitness.valid]
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind_off)
+        for ind, fit in zip(invalid_ind_off, fitnesses):
             ind.fitness.values = fit
 
         # Evaluate the mutated individuals with an invalid fitness
-        invalid_ind = [ind for ind in mutated if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
+        invalid_ind_mut = [ind for ind in mutated if not ind.fitness.valid]
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind_mut)
+        for ind, fit in zip(invalid_ind_mut, fitnesses):
             ind.fitness.values = fit
+
+        # Add the offspring and mutated individuals to the population as per the paper
+        population.extend(offspring)
+        population.extend(mutated)
 
         # Update the hall of fame with the generated individuals
         if halloffame is not None:
-            halloffame.update(offspring)
-
-        # Replace the current population by the offspring
-        population[:] = offspring
+            halloffame.update(population)
 
         # Append the current generation statistics to the logbook
         record = stats.compile(population) if stats else {}
-        logbook.record(gen=gen, nevals=len(invalid_ind), **record)
+        logbook.record(gen=gen, nevals=len(invalid_ind_off)+len(invalid_ind_mut), **record)
         if verbose:
             print(logbook.stream)
 
