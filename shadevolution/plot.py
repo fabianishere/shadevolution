@@ -1,6 +1,6 @@
 import collections
 
-import matplotlib.backends.backend_agg as backend
+import matplotlib
 import matplotlib.pyplot as plt
 import moderngl
 import numpy as np
@@ -10,7 +10,7 @@ from moderngl_window.opengl.vao import VAO
 
 sns.set()
 sns.set_style("white")
-
+matplotlib.use('Qt5Agg')
 plt.style.use('dark_background')
 
 
