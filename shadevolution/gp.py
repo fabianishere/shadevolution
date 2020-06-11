@@ -116,10 +116,6 @@ def mutate_individual(individual, pset):
     if rand < 0.25:
         gp.mutEphemeral(individual, mode='one')
 
-    # Randomly remove branches with child
-    if 0.25 < rand < 0.75:
-        gp.mutShrink(individual)
-
     # Mutate individual in one of three ways with equal probability
     if rand < 0.33:
         return delete_statement(individual, pset)
