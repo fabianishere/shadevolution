@@ -13,8 +13,8 @@ def generate_individual(container, pset, genesis):
     :return: The generated individual.
     """
     individual = container(genesis)
-    gp.mutShrink(individual)
-    gp.mutNodeReplacement(individual, pset)
+    #gp.mutShrink(individual)
+    #gp.mutInsert(individual, pset)
     return individual
 
 
@@ -35,11 +35,6 @@ def generate_pset(name, params, tree):
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)
-
-    vars = ['cosi', 'cost', 'R', 'sint', 'r_ortho', 'r_par']
-    for var in vars:
-        pset.addTerminal(var, shader.Id)
-        pset.addTerminal(var, float)
 
     for i, (name, _) in enumerate(params):
         pset.renameArguments(**{f'ARG{i}': name})

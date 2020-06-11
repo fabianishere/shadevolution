@@ -1,9 +1,10 @@
 import sys
 
+import moderngl
 import numpy as np
 from pyrr import Matrix44
 
-from shadevolution import models, fresnel, shader
+from shadevolution import models, fresnel, shader, plot
 
 
 class Evaluator:
@@ -24,10 +25,16 @@ class Evaluator:
         self.size = size
         self.repeat = repeat
 
+        self.reference_program = fresnel.create_program(self.ctx)
         self.fbo = self.ctx.simple_framebuffer(size)
-
         self.vao = models.load_crate()
         self.fresnel = fresnel.Fresnel(self.ctx, self.vao)
+
+        self.duration_renderer = plot.FigureRenderer(self.ctx, xlabel='Time', ylabel='Frame Duration [ns]',
+                                                     figsize=(600, 200))
+        self.count = 0
+        self.duration_line = plot.Line()
+        self.duration_renderer.add(self.duration_line)
 
     def __del__(self):
         self.vao.release()
@@ -39,19 +46,37 @@ class Evaluator:
 
         :return: The baseline as a Numpy array representing the framebuffer.
         """
-        model, view, projection = self._prepare_mvp(self.size[0] / self.size[1])
+        view = self._prepare_view()
+        projection = self._prepare_projection(aspect=16/9, fovy=50)
 
-        # Render in our framebuffer object
-        self.fbo.use()
+        program = self.reference_program
+        res = []
 
-        program = fresnel.create_program(self.ctx)
-        self.fresnel.render(program, model, view, projection)
+        try:
+            for i in range(self.repeat):
+                model = self._prepare_model(0)
 
-        # Make sure we render again to the window
-        self.wnd.use()
+                # Render in our framebuffer object
+                self.fbo.use()
+                self.fresnel.render(program, model, view, projection)
 
-        raw = self.fbo.read(components=4, dtype='f4')
-        return np.frombuffer(raw, dtype='f4')
+                raw = self.fbo.read(components=3, dtype='f4')
+                fb = np.frombuffer(raw, dtype='f4')
+                fb = fb.reshape((len(fb) // 3, 3))
+                res.append(fb)
+
+                self.fbo.clear()
+
+                # Render demonstration
+                # self.wnd.use()
+                # self._render_window(program, model, view, projection)
+                # self.wnd.swap_buffers()
+
+        finally:
+            # Make sure we render again to the window
+            self.wnd.use()
+
+        return res
 
     def eval(self, individual, genesis, baseline):
         """
@@ -66,56 +91,114 @@ class Evaluator:
         params = [('th', 'float'), ('n', 'float')]
 
         source = shader.write(name, params, individual)
-        model, view, projection = self._prepare_mvp(self.size[0] / self.size[1])
-
-        # Render in our framebuffer object
-        self.fbo.use()
+        view = self._prepare_view()
+        projection = self._prepare_projection(aspect=16/9, fovy=50)
 
         try:
             program = fresnel.create_program(self.ctx, source)
 
             frame_durations = []
 
-            for _ in range(self.repeat):
+            for i in range(self.repeat):
+                model = self._prepare_model(0)
+
+                # Render in our framebuffer object
+                self.fbo.use()
+
                 query = self.fresnel.render(program, model, view, projection)
                 frame_durations.append(query.elapsed)
 
-                # raw = self.fbo.read(components=4, dtype='f4')
-                # fb = np.frombuffer(raw, dtype='f4')
+                # self.duration_line.append(self.count, query.elapsed)
+                # self.count += 1
 
-            self.wnd.use()
-            self.ctx.clear()
-            self.fresnel.render(program, model, view, projection)
-            self.wnd.swap_buffers()
+                raw = self.fbo.read(components=3, dtype='f4')
+                fb = np.frombuffer(raw, dtype='f4')
+                fb = fb.reshape((len(fb) // 3, 3))
+
+                err = np.abs(fb - baseline[i])
+                print(np.mean(fb), np.mean(baseline[i]), np.mean(err))
+
+                self.fbo.clear()
+
+                # Render demonstration
+                #self.wnd.use()
+                #self._render_window(program, model, view, projection)
+                self.wnd.swap_buffers()
+
+
+
         except Exception as e:
-            # Make sure we render again to the window
+            # Make sure we can render again to the window
             self.wnd.use()
 
-            # print(e)
+            print(e)
             # diff = shader.diff(name, params, genesis, individual)
             # sys.stdout.writelines(diff)
             return False,
+
         return np.mean(frame_durations),
 
-    @staticmethod
-    def _prepare_mvp(aspect):
+    def _render_window(self, program, model, view, projection):
         """
-        Prepare the model view projection matrices.
+        Render a demo of the current shaders at work to screen.
 
-        :return: A tuple containing the three matrices.
+        :param time: The point in time to render.
+        """
+        self.ctx.clear()
+        self.ctx.enable_only(moderngl.DEPTH_TEST | moderngl.CULL_FACE | moderngl.BLEND)
+
+        projection_left = Matrix44.from_translation((-0.5, 0.25, 0), dtype='f4') * projection
+        projection_right = Matrix44.from_translation((0.5, 0.25, 0), dtype='f4') * projection
+
+        self.fresnel.render(self.reference_program, model, view, projection_left)
+        self.fresnel.render(program, model, view, projection_right)
+
+        self._render_stats()
+
+    def _render_stats(self):
+        """
+        Render the statistics on screen.
+        """
+        view = self._prepare_view(x=0, y=0)
+
+        projection = self._prepare_projection(self.wnd.aspect_ratio)
+        projection_bottom_left = Matrix44.from_translation((-0.5, -0.6, 0), dtype='f4') * \
+                                 Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
+
+        projection_bottom_right = Matrix44.from_translation((0.5, -0.6, 0), dtype='f4') * \
+                                  Matrix44.from_scale((1.2, 0.5, 1), dtype='f4') * projection
+
+        self.duration_renderer.render(projection_bottom_left * view)
+
+    @staticmethod
+    def _prepare_model(rot):
+        """
+        Prepare the model matrix.
+
+        :param rot: The rotation to apply.
         """
         translation = Matrix44.from_translation((0, 0, 0), dtype='f4')
-        rotation = Matrix44.from_eulers((0, 0, 0), dtype='f4')
-        model = translation * rotation
-        view = Matrix44.look_at(
-            (0, 0, 2),
+        rotation = Matrix44.from_eulers((0, 0, rot), dtype='f4')
+        return translation * rotation
+
+    @staticmethod
+    def _prepare_view(x=2, y=2, z=2):
+        """
+        Prepare the view matrix.
+        """
+        return Matrix44.look_at(
+            (x, y, z),
             (0.0, 0.0, 0.0),
             (0.0, 1.0, 0.0),
             dtype='f4',
         )
-        projection = Matrix44.perspective_projection(
-            fovy=80, aspect=aspect, near=1.0, far=100.0,
+
+    @staticmethod
+    def _prepare_projection(aspect, fovy=80):
+        """
+        Prepare the projection matrix.
+        """
+        return Matrix44.perspective_projection(
+            fovy=fovy, aspect=aspect, near=1.0, far=100.0,
             dtype='f4'
         )
-
-        return model, view, projection

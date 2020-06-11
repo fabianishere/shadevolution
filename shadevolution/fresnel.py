@@ -119,7 +119,7 @@ class Fresnel:
         self.light_color = Vector3([1.0, 1.0, 1.0], dtype='f4')
         self.object_color = Vector3([1.0, 0.5, 0.31], dtype='f4')
 
-    def render(self, program, model, view, projection):
+    def render(self, program, model, view, projection, query=True):
         """
         Render a model with the current program to screen.
 
@@ -136,8 +136,12 @@ class Fresnel:
         program['lightColor'].write(self.light_color)
         program['objectColor'].write(self.object_color)
 
-        query = self.ctx.query(samples=True, time=True)
-        with query:
+        if query:
+            query = self.ctx.query(samples=True, time=True)
+            with query:
+                self.vao.render(program)
+            return query
+        else:
             self.vao.render(program)
-        return query
+            return None
 

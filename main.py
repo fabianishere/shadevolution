@@ -11,7 +11,6 @@ if __name__ == "__main__":
     window = window_cls(
         title="Genetic Programming for Shader Optimization",
         gl_version=(4, 1),
-        size=(1920, 1080),
     )
     mglw.activate_context(ctx=window.ctx)
 
@@ -31,7 +30,7 @@ if __name__ == "__main__":
 
     toolbox.register("evaluate", evaluator.eval, genesis=tree, baseline=baseline)
 
-    pop = toolbox.population(n=300)
+    pop = toolbox.population(n=100)
     hof = tools.HallOfFame(1)
     stats = tools.Statistics(lambda ind: ind.fitness.values)
     stats.register("avg", np.mean)
@@ -39,6 +38,6 @@ if __name__ == "__main__":
     stats.register("min", np.min)
     stats.register("max", np.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=40,
+    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=5,
                                    stats=stats, halloffame=hof, verbose=True)
 
