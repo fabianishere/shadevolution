@@ -64,6 +64,52 @@ def setup_toolbox(creator, pset, genesis):
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     return toolbox
 
+statement_names = ['set', 'if', 'ret', 'seq']
+
+def delete_statement(individual, pset):
+    # Find all statements amongst the primitives which we can somehow delete.
+    statements = []
+    for i, val in enumerate(individual):
+        if isinstance(val, gp.Primitive):
+            if val.name.split('/')[0] in statement_names:
+                statements.append([i, val])
+            # if val.name.split('/')[0] == 'set':
+            #     print(individual[i+2])
+
+    st_idx = random.randrange(len(statements))
+    index = statements[st_idx][0]
+    node = statements[st_idx][1]
+    slice_ = individual.searchSubtree(index)
+    if node.name.split('/')[0] == 'set':
+        retType = individual[index + 2].ret
+        slice_ = individual.searchSubtree(index + 2)
+        del individual[slice_]
+        if retType == shader.Float:
+            newNode = gp.Terminal(0.0, False, shader.Float)
+        elif retType == shader.Bool:
+            newNode = gp.Terminal(False, False, shader.Bool)
+        else:
+            newNode = gp.Terminal('void', False, shader.Unit)
+        individual.insert(index + 2, newNode)
+    else :
+        del individual[slice_]
+    return individual,
+
+
+# Mutates a single individual for the next generation by deleting, inserting or replacing subtrees
+def mutate_individual(individual, pset):
+    rand = random.random()
+    # Mutate individual in one of three ways with equal probability
+    if rand < 0.33:
+        return delete_statement(individual, pset)
+    if rand < 0.66:
+        return gp.mutInsert(individual, pset)
+
+    # Can throw errors if it cannot find a good replacement, in that case, return original to prevent further errors
+    try:
+        return gp.mutNodeReplacement(individual, pset)
+    except:
+        return individual
 
 def setup_operators(toolbox, pset):
     """
@@ -72,7 +118,7 @@ def setup_operators(toolbox, pset):
     :param pset: The primitive set to pick new nodes from.
     """
     toolbox.register("mate", gp.cxOnePoint)
-    toolbox.register("mutate", gp.mutInsert, pset=pset)
+    toolbox.register("mutate", mutate_individual, pset=pset)
     toolbox.register("select", tools.selTournament, tournsize=16)
 
 
