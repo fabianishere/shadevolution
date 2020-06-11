@@ -64,34 +64,36 @@ def setup_toolbox(creator, pset, genesis):
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     return toolbox
 
-statement_names = ['set', 'if', 'ret', 'seq']
 
 def delete_statement(individual, pset):
+    statement_names = ['set', 'if', 'ret', 'seq']
     # Find all statements amongst the primitives which we can somehow delete.
     statements = []
     for i, val in enumerate(individual):
         if isinstance(val, gp.Primitive):
             if val.name.split('/')[0] in statement_names:
                 statements.append([i, val])
-            # if val.name.split('/')[0] == 'set':
-            #     print(individual[i+2])
 
+    # Choose random statement to delete
     st_idx = random.randrange(len(statements))
     index = statements[st_idx][0]
     node = statements[st_idx][1]
     slice_ = individual.searchSubtree(index)
+
+    # In case the statement is an assignment (set), then set the right hand side to the default terminal of the same
+    # type to prevent undefined variable errors
     if node.name.split('/')[0] == 'set':
-        retType = individual[index + 2].ret
+        ret_type = individual[index + 2].ret
         slice_ = individual.searchSubtree(index + 2)
         del individual[slice_]
-        if retType == shader.Float:
-            newNode = gp.Terminal(0.0, False, shader.Float)
-        elif retType == shader.Bool:
-            newNode = gp.Terminal(False, False, shader.Bool)
+        if ret_type == shader.Float:
+            node = gp.Terminal(0.0, False, shader.Float)
+        elif ret_type == shader.Bool:
+            node = gp.Terminal(False, False, shader.Bool)
         else:
-            newNode = gp.Terminal('void', False, shader.Unit)
-        individual.insert(index + 2, newNode)
-    else :
+            node = gp.Terminal('void', False, shader.Unit)
+        individual.insert(index + 2, node)
+    else:
         del individual[slice_]
     return individual,
 
