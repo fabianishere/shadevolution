@@ -221,10 +221,10 @@ FUN = {
 }
 
 type_map = {
-    'float': Float,
-    'double': Float,
-    'int': Float,  # Integers are implicitly converted to float
-    'bool': Bool
+    'float': (Float, lambda x: float(x[:-1])),
+    'double': (Float, lambda x: float(x)),
+    'int': (Float, lambda x: float(x)),  # Integers are implicitly converted to float
+    'bool': (Bool, lambda x: x == 'True')
 }
 
 
@@ -267,7 +267,7 @@ class ShaderParser(c_ast.NodeVisitor):
 
         for param_name, type in params:
             if type in type_map:
-                real_type = type_map[type]
+                real_type, _ = type_map[type]
             else:
                 real_type = Val
             self.vars[param_name] = real_type
@@ -291,7 +291,7 @@ class ShaderParser(c_ast.NodeVisitor):
         type = node.type.type.names[0]
 
         if type in type_map:
-            real_type = type_map[type]
+            real_type, _ = type_map[type]
         else:
             real_type = Val
         self.vars[node.name] = real_type
@@ -302,10 +302,12 @@ class ShaderParser(c_ast.NodeVisitor):
 
     def visit_Constant(self, node):
         if node.type in type_map:
-            type = type_map[node.type]
+            type, conversion = type_map[node.type]
+            value = conversion(node.value)
         else:
             type = Val
-        atom = self._literal(node.value, type)
+            value = node.value
+        atom = self._literal(value, type)
         self.tree += [atom]
 
     def visit_UnaryOp(self, node):
@@ -464,7 +466,7 @@ class ShaderWriter:
                 prim, args = stack.pop()
 
                 if isinstance(prim, gp.Terminal):
-                    string = self.convert_terminal(prim)
+                    string = self.convert_terminal(prim, ctx)
                 else:
                     string = self.convert_primitive(prim, args, ctx)
 
@@ -477,7 +479,7 @@ class ShaderWriter:
         footer = '\n}'
         return header + textwrap.indent(string, '    ') + footer
 
-    def convert_terminal(self, node):
+    def convert_terminal(self, node, ctx):
         if node.name.startswith('ARG'):
             # DEAP names the function arguments as ARG0, ARG1, ..., ARGn. Make sure that we use the correct parameter
             # names.
@@ -489,7 +491,7 @@ class ShaderWriter:
         elif node.ret == Bool:
             return 'true' if node.name else 'false'
         else:
-            return str(node.name)
+            return node.format()
 
     @staticmethod
     def convert_primitive(node, args, ctx):
