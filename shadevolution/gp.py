@@ -325,19 +325,14 @@ def mutInlineChild(individual):
     index = random.randrange(1, len(individual))
     node = individual[index]
 
-    children = _find_children(individual, index)
+    children = [(child, individual[child]) for child in _find_children(individual, index) if
+                issubclass(node.ret, individual[child].ret)]
 
-    # Bail out when the node has no children
+    # Bail out when the node has no (applicable) children
     if not children:
         return individual,
 
-    child_index = random.choice(children)
-    child = individual[child_index]
-
-    # Test whether the types are compatible
-    if node.ret != child.ret:
-        return individual,
-
+    child_index, child = random.choice(children)
     subtree = individual.searchSubtree(index)
     child_tree = individual.searchSubtree(child_index)
     new_individual = individual[:index] + individual[child_tree] + individual[subtree.stop:]
