@@ -25,6 +25,7 @@ def run(pop_size, ngen, cxpb, mutpb):
     window = window_cls(
         title="Genetic Programming for Shader Optimization",
         gl_version=(4, 1),
+        vsync=False
     )
     mglw.activate_context(ctx=window.ctx)
 
