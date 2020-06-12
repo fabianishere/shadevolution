@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import sys
 import argparse
 import random
+import sys
 
-import numpy as np
 import moderngl_window as mglw
-from deap import tools, algorithms
+import numpy as np
+from deap import tools
 from pycparser import parse_file
 
 from shadevolution import shader, gp as sgp
@@ -61,8 +61,13 @@ def run(pop_size, ngen, cxpb, mutpb, enable_plot=False):
     pop, log = sgp.algorithm(pop, toolbox, cxpb=cxpb, mutpb=mutpb, ngen=ngen,
                              stats=stats, halloffame=hof, verbose=True)
 
-    print("Hall of Fame:")
+    print(f'Hall of Fame ({len(hof)} individuals):')
     for individual in hof:
+        frame_time, error = individual.fitness.values
+        print('Fitness:')
+        print(f'Avg Frame Time [ns]: {frame_time}')
+        print(f'Avg Frame Error: {error}')
+        print('Variant:')
         diff = shader.diff(name, params, tree, individual)
         sys.stdout.writelines(diff)
         print('')  # Ensure that we write a newline
