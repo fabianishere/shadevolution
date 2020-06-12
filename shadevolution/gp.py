@@ -13,6 +13,7 @@ def generate_individual(container, pset, genesis):
     :return: The generated individual.
     """
     individual = container(genesis)
+    _find_in_scope(individual, 4)
     mutate_individual(individual, pset)
     return individual
 
@@ -429,15 +430,17 @@ def _find_in_scope(individual, index):
     :return: The variables and their types in scope.
     """
     res = {}
+    previous = index
     for ancestor in _find_ancestors(individual, index):
         i = ancestor + 1
-        while i < index:
+        while i < previous:
             subtree = individual.searchSubtree(i)
             node = individual[i]
 
             if node.name.startswith('set'):
                 res[individual[i + 1].name] = individual[i + 2].ret
             i = subtree.stop
+        previous = ancestor
 
     return res
 
