@@ -262,14 +262,15 @@ class ShaderParser(c_ast.NodeVisitor):
 
     def visit_FuncDef(self, node):
         name = node.decl.name
+
         params = list([(decl.name, decl.type.type.names[0]) for decl in node.decl.type.args.params])
 
-        for name, type in params:
+        for param_name, type in params:
             if type in type_map:
                 real_type = type_map[type]
             else:
                 real_type = Val
-            self.vars[name] = real_type
+            self.vars[param_name] = real_type
 
         self.tree = gp.PrimitiveTree([])
         self.visit(node.body)

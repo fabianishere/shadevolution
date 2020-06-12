@@ -26,17 +26,17 @@ def mutate_individual(individual, pset):
     """
     rand = random.random()
 
-    # Randomly mutate ephemeral values
-    if rand < 0.25:
-        individual, = gp.mutEphemeral(individual, mode='one')
-    # elif rand < 0.5:
-    #     individual, = mutInlineChild(individual)
+    # Perform pre-mutations
+    if rand < 0.33:
+        individual, = mutInlineChild(individual)
+
+    rand = random.random()
 
     # Mutate individual in one of three ways with equal probability
     if rand < 0.33:
-        return mutDelete(individual)
+        return mutShrink(individual)
     elif rand < 0.66:
-        return gp.mutInsert(individual, pset)
+        return mutInsert(individual, pset)
     else:
         return mutNodeReplacement(individual, pset)
 
@@ -51,6 +51,10 @@ def generate_pset(name, params, tree):
     """
     pset = gp.PrimitiveSetTyped(name, [object] * len(params), object)
     for name, fun in shader.FUN.items():
+        # Ignore sequencing functions since they don't generate any mutations with side-effects
+        if name.startswith('seq'):
+            continue
+
         pset.addPrimitive(fun, fun.params, fun.ret, name=name)
 
     pset.addTerminal(0.0, shader.Float)
@@ -58,10 +62,12 @@ def generate_pset(name, params, tree):
     pset.addTerminal(2.0, shader.Float)
     pset.addTerminal(-1.0, shader.Float)
     pset.addTerminal(-2.0, shader.Float)
-    # pset.addEphemeralConstant('e', lambda: random.random(), shader.Float)
     pset.addTerminal(False, shader.Bool)
     pset.addTerminal(True, shader.Bool)
     pset.addTerminal('void', shader.Unit)
+
+    # BUG: Ephemeral constants are not properly initialized by DEAP
+    # pset.addEphemeralConstant('e', lambda: random.random(), shader.Float)
 
     for i, (name, _) in enumerate(params):
         pset.renameArguments(**{f'ARG{i}': name})
@@ -181,14 +187,14 @@ def algorithm(population, toolbox, cxpb, mutpb, ngen, stats=None,
 
         # Append the current generation statistics to the logbook
         record = stats.compile(population) if stats else {}
-        logbook.record(gen=gen, nevals=len(invalid_ind_off)+len(invalid_ind_mut), **record)
+        logbook.record(gen=gen, nevals=len(invalid_ind_off) + len(invalid_ind_mut), **record)
         if verbose:
             print(logbook.stream)
 
     return population, logbook
 
 
-def mutDelete(individual):
+def mutShrink(individual):
     """
     Mutate the tree by randomly selecting and deleting a subtree of the tree, replacing them with the unit value of
     their return type.
@@ -243,7 +249,7 @@ def mutNodeReplacement(individual, pset):
 
     if node.arity == 0:  # Terminal
         terms = pset.terminals[node.ret]
-        var = list([name for name, type in _find_in_scope(individual, index).items() if type == node.ret])
+        var = list([name for name, type in _find_in_scope(individual, index).items() if issubclass(type, node.ret)])
         choice = len(terms) + len(var)
 
         # If there is no replacement available: abort
@@ -261,13 +267,52 @@ def mutNodeReplacement(individual, pset):
         if term.arity != 0:
             term.arity = 0
         individual[index] = term
-    elif not node.name.startswith('set'):
-        # Prevent replacement of set calls due to their order sensitivity
-        prims = [p for p in pset.primitives[node.ret] if p.args == node.args]
+    elif node.name not in {'set/2', 'return/1'}:
+        # Prevent replacement of set and return calls due to their order sensitivity
+        prims = [p for p in pset.primitives[node.ret] if _can_substitute_call(node, p)]
+
         # Make sure that a replacement is available
         if prims:
             individual[index] = random.choice(prims)
 
+    return individual,
+
+
+def mutInsert(individual, pset):
+    """
+    Insert a new branch at a random position in individual. The subtree
+    at the chosen position is used as child node of the created subtree, in
+    that way, it is really an insertion rather than a replacement.
+    :param individual: The tree to be mutated.
+    :returns: A tuple of one tree.
+    """
+    index = random.randrange(len(individual))
+    node = individual[index]
+    slice_ = individual.searchSubtree(index)
+    choice = random.choice
+
+    # As we want to keep the current node as children of the new one,
+    # it must accept the return value of the current node
+    primitives = [p for p in pset.primitives[node.ret] if any([issubclass(node.ret, pa) for pa in p.args])]
+
+    if len(primitives) == 0:
+        return individual,
+
+    scope = _find_in_scope(individual, index)
+
+    new_node = choice(primitives)
+    new_subtree = []
+    position = choice([i for i, a in enumerate(new_node.args) if issubclass(node.ret, a)])
+
+    for i, arg_type in enumerate(new_node.args):
+        if i != position:
+            terms = _generate_node(arg_type, scope, pset)
+            new_subtree.extend(terms)
+        else:
+            new_subtree.extend(individual[slice_])
+
+    new_subtree.insert(0, new_node)
+    individual[slice_] = new_subtree
     return individual,
 
 
@@ -295,9 +340,54 @@ def mutInlineChild(individual):
 
     subtree = individual.searchSubtree(index)
     child_tree = individual.searchSubtree(child_index)
-    individual = gp.PrimitiveTree(individual[:index] + individual[child_tree] + individual[subtree.stop:])
-
+    new_individual = individual[:index] + individual[child_tree] + individual[subtree.stop:]
+    individual.clear()
+    individual.extend(new_individual)
     return individual,
+
+
+def _generate_node(ret_type, scope, pset):
+    """
+    Generate a primitive value.
+    :param ret_type:  The return type of the primitive to generate.
+    :param scope: The scope in which to generate the primitive.
+    :param pset: The primitive set to generate from.
+    :return: The generated primitive and its children.
+    """
+    rand = random.random()
+
+    # TODO: Parameterize this probability
+    if rand < 0.2:
+        return _generate_primitive(ret_type, scope, pset)
+    else:
+        return [_generate_terminal(ret_type, scope, pset)]
+
+
+def _generate_terminal(arg_type, scope, pset):
+    """
+    Generate a terminal value.
+    :param arg_type: The type of argument to generate.
+    :param scope: The scope in which to generate the terminal.
+    :param pset: The primitive set to generate from.
+    :return: The generated terminal.
+    """
+    var = [gp.Terminal(name, True, type) for name, type in scope.items() if issubclass(type, arg_type)]
+    return random.choice(pset.terminals[arg_type] + var)
+
+
+def _generate_primitive(ret_type, scope, pset):
+    """
+    Generate a primitive value.
+    :param ret_type:  The return type of the primitive to generate.
+    :param scope: The scope in which to generate the primitive.
+    :param pset: The primitive set to generate from.
+    :return: The generated primitive and its children.
+    """
+    primitive = random.choice(pset.primitives[ret_type])
+    nodes = [primitive]
+    for i, arg_type in enumerate(primitive.args):
+        nodes.extend(_generate_node(arg_type, scope, pset))
+    return nodes
 
 
 def _find_children(individual, index):
@@ -355,3 +445,18 @@ def _find_in_scope(individual, index):
             i = subtree.stop
 
     return res
+
+
+def _can_substitute_call(lhs, rhs):
+    """
+    Determine whether original call can be substituted by the other call.
+    :param lhs: The original call.
+    :param rhs: The call to check whether it can be substituted.
+    :return: `True` if the new call can be substituted in place of the original call.
+    """
+    if lhs.arity != rhs.arity:
+        # Functions do not accept the same amount of parameters
+        return False
+
+    # Arguments must be contravariant
+    return all([issubclass(l, r) for l, r in zip(lhs.args, rhs.args)])
