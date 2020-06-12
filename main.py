@@ -75,7 +75,7 @@ def main():
                         dest='ngen')
     parser.add_argument('--cross-over', type=float, default=0.5, help='probability of a cross-over event',
                         dest='cxpb')
-    parser.add_argument('--mutation', type=float, default=0.2, help='probability of a mutation even', dest='mutpb')
+    parser.add_argument('--mutation', type=float, default=0.2, help='probability of a mutation event', dest='mutpb')
     parser.add_argument('--seed', type=int, default=False, help='seed for rng', dest='seed')
     args = parser.parse_args()
 
