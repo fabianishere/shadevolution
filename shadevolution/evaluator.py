@@ -13,12 +13,13 @@ class Evaluator:
     """
     gl_version = (4, 1)
 
-    def __init__(self, window, size=(2048, 2048), repeat=32):
+    def __init__(self, window, size=(2048, 2048), repeat=32, enable_plot=True):
         """
         Construct an evaluator instance.
 
         :param window: The window to perform the evaluation in.
         :param size: The size of the framebuffer to render in.
+        :param enable_plot: A flag to enable live plotting of results.
         """
         self.wnd = window
         self.ctx = window.ctx
@@ -29,8 +30,8 @@ class Evaluator:
         self.fbo = self.ctx.simple_framebuffer(size, 4)
         self.vao = models.load_crate()
         self.fresnel = fresnel.Fresnel(self.ctx, self.vao)
+        self.reporter = plot.VisualizationReporter() if enable_plot else None
 
-        self.reporter = plot.VisualizationReporter()
 
     def __del__(self):
         self.vao.release()
@@ -124,7 +125,8 @@ class Evaluator:
                 self._render_window(program, model, view, projection)
                 self.wnd.swap_buffers()
 
-                self.reporter.report(query.elapsed, err)
+                if self.reporter:
+                    self.reporter.report(query.elapsed, err)
         except Exception as e:
             print(e)
             # Make sure we can render again to the window

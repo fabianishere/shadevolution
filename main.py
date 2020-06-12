@@ -12,7 +12,7 @@ from shadevolution import shader, gp as sgp
 from shadevolution.evaluator import Evaluator
 
 
-def run(pop_size, ngen, cxpb, mutpb):
+def run(pop_size, ngen, cxpb, mutpb, enable_plot=False):
     """
     Run the parameterized experiment.
 
@@ -20,6 +20,7 @@ def run(pop_size, ngen, cxpb, mutpb):
     :param ngen: The number of generations.
     :param cxpb: The probability of a cross-over event.
     :param mutpb: The probability of a mutation event.
+    :param enable_plot: A flag to enable live plotting of results.
     """
     window_cls = mglw.get_local_window_cls()
     window = window_cls(
@@ -44,7 +45,7 @@ def run(pop_size, ngen, cxpb, mutpb):
     sgp.setup_operators(toolbox, pset)
 
     # Setup evaluator
-    evaluator = Evaluator(window)
+    evaluator = Evaluator(window, enable_plot=enable_plot)
     baseline = evaluator.determine_baseline()
 
     toolbox.register("evaluate", evaluator.eval, genesis=tree, baseline=baseline)
@@ -77,12 +78,14 @@ def main():
                         dest='cxpb')
     parser.add_argument('--mutation', type=float, default=0.2, help='probability of a mutation event', dest='mutpb')
     parser.add_argument('--seed', type=int, default=False, help='seed for rng', dest='seed')
+    parser.add_argument('--disable-plot', action='store_true', default=False, dest='disable_plot', help='disable live '
+                                                                                                        'plot')
     args = parser.parse_args()
 
     if args.seed is not False:
         random.seed(args.seed)
 
-    run(args.pop_size, args.ngen, args.cxpb, args.mutpb)
+    run(args.pop_size, args.ngen, args.cxpb, args.mutpb, enable_plot=not args.disable_plot)
 
 
 if __name__ == "__main__":
